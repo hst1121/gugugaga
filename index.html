@@ -2,184 +2,377 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>しょぼんのアクション風 - 修正版</title>
+    <title>ヒステリックお母さん会話ゲーム</title>
     <style>
-        body { background-color: #333; margin: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; color: #fff; }
-        #game-container { position: relative; width: 800px; height: 480px; border: 4px solid #fff; background-color: #87ceeb; overflow: hidden; }
-        canvas { display: block; background: transparent; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        #msg-box { background: rgba(0,0,0,0.7); padding: 20px; font-size: 24px; display: none; pointer-events: auto; }
-        #game-over { background: rgba(0,0,0,0.8); width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; pointer-events: auto; }
-        .retry-btn { margin-top: 20px; padding: 10px 20px; font-size: 18px; cursor: pointer; background: #fff; color: #000; border: none; }
+        body {
+            font-family: 'メイリオ', Meiryo, sans-serif;
+            background-color: #f0f0f0;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        #game-container {
+            width: 700px;
+            height: 500px;
+            background-color: #fff;
+            border: 2px solid #ccc;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-radius: 8px;
+        }
+        #mom-face {
+            height: 150px;
+            background-color: #e0e0e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 80px;
+            border-bottom: 1px solid #ddd;
+            position: relative;
+        }
+        #mom-face span {
+            filter: grayscale(100%); /* 初期はグレー */
+            transition: filter 0.3s ease-in-out;
+        }
+        #mom-face.angry span {
+            filter: grayscale(0%); /* 怒るとカラーに */
+        }
+        #anger-bar-container {
+            position: absolute;
+            bottom: 10px;
+            width: 80%;
+            height: 15px;
+            background-color: #eee;
+            border: 1px solid #bbb;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        #anger-bar {
+            height: 100%;
+            width: 0%;
+            background-color: #ff4d4d;
+            transition: width 0.3s ease-in-out;
+        }
+        #dialogue-area {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            border-bottom: 1px solid #eee;
+            line-height: 1.6;
+        }
+        .speaker {
+            font-weight: bold;
+            margin-top: 10px;
+            font-size: 1.1em;
+        }
+        .speaker.mom { color: #d32f2f; }
+        .speaker.player { color: #1976d2; }
+        .text {
+            margin-left: 15px;
+            margin-bottom: 10px;
+        }
+        #choices-area {
+            padding: 15px 20px;
+            background-color: #f9f9f9;
+            border-top: 1px solid #eee;
+        }
+        .choice-btn {
+            display: block;
+            width: 100%;
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            border: 1px solid #a0a0a0;
+            background-color: #e8e8e8;
+            color: #333;
+            text-align: left;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s;
+            border-radius: 4px;
+        }
+        .choice-btn:hover {
+            background-color: #d8d8d8;
+            border-color: #777;
+        }
+        .choice-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        #game-over-screen, #game-clear-screen {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0,0,0,0.85);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5em;
+            text-align: center;
+            z-index: 100;
+        }
+        #game-over-screen button, #game-clear-screen button {
+            margin-top: 30px;
+            padding: 12px 25px;
+            font-size: 1em;
+            background-color: #ff4d4d;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #game-clear-screen button {
+            background-color: #4CAF50;
+        }
+        #game-over-screen button:hover { background-color: #e60000; }
+        #game-clear-screen button:hover { background-color: #45a049; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
-    <div id="game-container">
-        <canvas id="gameCanvas" width="800" height="480"></canvas>
-        <div id="ui-layer">
-            <div id="msg-box"></div>
-            <div id="game-over">
-                <h1 style="color:red; font-size:60px;">GAME OVER</h1>
-                <button class="retry-btn" onclick="resetGame()">リトライ (Rキー)</button>
-            </div>
+<div id="game-container">
+    <div id="mom-face">
+        <span id="mom-emoji">😡</span>
+        <div id="anger-bar-container">
+            <div id="anger-bar"></div>
         </div>
     </div>
+    <div id="dialogue-area">
+        </div>
+    <div id="choices-area">
+        </div>
+</div>
 
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const msgBox = document.getElementById('msg-box');
-        const gameOverScreen = document.getElementById('game-over');
+<div id="game-over-screen" class="hidden">
+    <h1>ゲームオーバー</h1>
+    <p>お母さんの怒りが限界に達しました…</p>
+    <button onclick="restartGame()">もう一度やり直す</button>
+</div>
 
-        // 設定
-        const TILE_SIZE = 40;
-        const GRAVITY = 0.6;
-        const JUMP = -12;
-        const SPEED = 4;
+<div id="game-clear-screen" class="hidden">
+    <h1>ゲームクリア！</h1>
+    <p>お母さんを落ち着かせることができました！</p>
+    <button onclick="restartGame()">もう一度プレイする</button>
+</div>
 
-        let player = { x: 80, y: 300, w: 30, h: 30, vx: 0, vy: 0, onGround: false, dead: false };
-        let scrollX = 0;
-        let map = [
-            "                                                  ",
-            "                                                  ",
-            "                                                  ",
-            "                                                  ",
-            "          ====                                    ",
-            "                                                  ",
-            "                ?    ?                            ",
-            "                                                  ",
-            "     ==                                           ",
-            "                                  XXXXX           ",
-            "#################      ###########################",
-            "#################      ###########################"
-        ];
+<script>
+    const momEmoji = document.getElementById('mom-emoji');
+    const momFaceContainer = document.getElementById('mom-face');
+    const angerBar = document.getElementById('anger-bar');
+    const dialogueArea = document.getElementById('dialogue-area');
+    const choicesArea = document.getElementById('choices-area');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const gameClearScreen = document.getElementById('game-clear-screen');
 
-        let keys = {};
-        window.addEventListener('keydown', e => {
-            keys[e.code] = true;
-            if(e.code === 'KeyR' && player.dead) resetGame();
-        });
-        window.addEventListener('keyup', e => keys[e.code] = false);
+    let currentAnger = 50; // お母さんの初期の怒り (0-100)
+    const ANGER_MAX = 100;
+    const ANGER_MIN_TO_CLEAR = 20; // クリアに必要な怒りの最低値
+    const INITIAL_ANGER_LEVEL = 50; // リスタート時の初期怒り
+    let currentScenario = 0; // 現在の会話シナリオの段階
+    let gameActive = false;
 
-        function resetGame() {
-            player = { x: 80, y: 300, w: 30, h: 30, vx: 0, vy: 0, onGround: false, dead: false };
-            scrollX = 0;
-            gameOverScreen.style.display = 'none';
-            // 隠しブロックなどをリセットしたい場合はここでマップを再定義
-            loop();
+    // 会話シナリオデータ
+    const scenarios = [
+        {
+            mom: "あんた！また部屋が散らかりっぱなしじゃない！何度言ったらわかるの！",
+            angerEffect: 10, // この発言自体で少し怒りが上がる
+            choices: [
+                { text: "ごめん、今片付けるよ。", angerChange: -10, response: "ごめんで済むと思ってるの？いつもそうじゃない！", emoji: "😡" },
+                { text: "そんなに散らかってないよ。", angerChange: +20, response: "はあ！？どこ見て言ってるの！目が節穴なの！？", emoji: "😠" },
+                { text: "分かったよ、後でやるから。", angerChange: +5, response: "後でやるは今やらないってことなのよ！逃げないで！", emoji: "😤" },
+            ],
+            correctChoiceIdx: 0 // 正解の選択肢のインデックス
+        },
+        {
+            mom: "だいたい、この間も言ったでしょ？靴下脱ぎっぱなしにしないでって！",
+            angerEffect: 5,
+            choices: [
+                { text: "それは本当にごめん、気をつける。", angerChange: -15, response: "本当に気をつけるなら最初からしないの！", emoji: "😒" },
+                { text: "靴下なんて大したことないだろ。", angerChange: +25, response: "大したことないって何！？そういう考えがダメなの！", emoji: "😡" },
+                { text: "だって疲れてたんだもん…。", angerChange: +10, response: "疲れてるのはお母さんも一緒よ！言い訳しないで！", emoji: "😠" },
+            ],
+            correctChoiceIdx: 0
+        },
+        {
+            mom: "いつもいつも口ばっかりで…本当にあなたは期待を裏切るわ！",
+            angerEffect: 15,
+            choices: [
+                { text: "そう思わせてしまってごめん。", angerChange: -20, response: "…そう思ってるって言ってるだけよ。", emoji: "🙁" },
+                { text: "期待なんてしてないでしょ。", angerChange: +30, response: "期待してるから言ってるのよ！言わなくなったら終わりよ！", emoji: "😡" },
+                { text: "もう黙っててくれ…。", angerChange: +ANGE_MAX, response: "なんですって！？この親不孝者が！", emoji: "🤬" },
+            ],
+            correctChoiceIdx: 0 // ここでクリアに必要な怒りレベルに到達させる
+        },
+        {
+            mom: "（少し落ち着いて）でも、あんたがちゃんと謝ってくれると、お母さんも嬉しいわ。",
+            angerEffect: -100, // このセリフで怒りが大幅に下がる
+            choices: [
+                { text: "分かってるよ、ありがとう。", angerChange: -10, response: "（笑顔）", emoji: "😊" },
+                { text: "本当にそう思ってる？", angerChange: +10, response: "疑うのね…もういいわ。", emoji: "😐" },
+            ],
+            correctChoiceIdx: 0, // 実質的なクリアセリフ
+            isFinal: true
+        }
+    ];
+
+    // ゲーム開始/リスタート
+    function startGame() {
+        currentAnger = INITIAL_ANGER_LEVEL;
+        currentScenario = 0;
+        dialogueArea.innerHTML = ''; // 会話ログをクリア
+        gameOverScreen.classList.add('hidden');
+        gameClearScreen.classList.add('hidden');
+        gameActive = true;
+        
+        updateAngerBar();
+        renderScenario();
+    }
+
+    // 怒りゲージの更新
+    function updateAngerBar() {
+        currentAnger = Math.max(0, Math.min(ANGER_MAX, currentAnger)); // 0-100に収める
+        angerBar.style.width = currentAnger + '%';
+        
+        // 怒りレベルに応じて顔の表情と色を変える
+        if (currentAnger >= 80) {
+            momEmoji.textContent = "🤬";
+            momFaceContainer.classList.add('angry');
+        } else if (currentAnger >= 50) {
+            momEmoji.textContent = "😡";
+            momFaceContainer.classList.add('angry');
+        } else if (currentAnger >= 30) {
+            momEmoji.textContent = "😐";
+            momFaceContainer.classList.remove('angry');
+        } else {
+            momEmoji.textContent = "😌";
+            momFaceContainer.classList.remove('angry');
         }
 
-        function update() {
-            if (player.dead) return;
+        if (currentAnger >= ANGER_MAX) {
+            gameOver();
+        }
+    }
 
-            // 移動
-            player.vx = 0;
-            if (keys['ArrowLeft']) player.vx = -SPEED;
-            if (keys['ArrowRight']) player.vx = SPEED;
+    // 会話ログにメッセージを追加
+    function addDialogue(speaker, text, emoji = null) {
+        const speakerClass = (speaker === 'お母さん') ? 'mom' : 'player';
+        const log = document.createElement('div');
+        log.innerHTML = `<div class="speaker ${speakerClass}">${speaker}:</div><div class="text">${text}</div>`;
+        dialogueArea.appendChild(log);
+        dialogueArea.scrollTop = dialogueArea.scrollHeight; // スクロールを一番下へ
+    }
 
-            // 重力
-            player.vy += GRAVITY;
-            player.x += player.vx;
-            player.y += player.vy;
+    // シナリオの表示と選択肢のレンダリング
+    function renderScenario() {
+        if (!gameActive) return;
 
-            // 衝突判定（簡易）
-            player.onGround = false;
-            let gridY = Math.floor((player.y + player.h) / TILE_SIZE);
-            let gridX = Math.floor((player.x + player.w / 2 + scrollX) / TILE_SIZE);
+        const scenario = scenarios[currentScenario];
+        if (!scenario) {
+            console.error("シナリオが見つかりません:", currentScenario);
+            return;
+        }
 
-            if (map[gridY] && (map[gridY][gridX] === '#' || map[gridY][gridX] === '=')) {
-                if (player.vy > 0) {
-                    player.y = gridY * TILE_SIZE - player.h;
-                    player.vy = 0;
-                    player.onGround = true;
+        choicesArea.innerHTML = ''; // 選択肢をクリア
+
+        // お母さんの発言
+        currentAnger += scenario.angerEffect;
+        updateAngerBar();
+        addDialogue('お母さん', scenario.mom);
+
+        if (scenario.isFinal && currentAnger <= ANGER_MIN_TO_CLEAR) {
+            // クリア条件達成時の最終選択肢
+            scenario.choices.forEach((choice, index) => {
+                const btn = document.createElement('button');
+                btn.classList.add('choice-btn');
+                btn.textContent = choice.text;
+                btn.onclick = () => selectChoice(index, scenario.isFinal);
+                choicesArea.appendChild(btn);
+            });
+        } else if (scenario.isFinal) {
+             // 最終シナリオだけど怒りがクリアラインまで下がってない場合
+             addDialogue('お母さん', '（まだ少し怒りが残っているようだ…）', '😐');
+             setTimeout(() => {
+                 currentScenario = 0; // 最初からやり直しに強制
+                 addDialogue('ゲーム', 'あなたは怒りを十分に下げることができなかったため、話は振り出しに戻った！');
+                 setTimeout(() => startGame(), 2000);
+             }, 2000);
+             return;
+        } else {
+            // 通常の選択肢
+            scenario.choices.forEach((choice, index) => {
+                const btn = document.createElement('button');
+                btn.classList.add('choice-btn');
+                btn.textContent = choice.text;
+                btn.onclick = () => selectChoice(index);
+                choicesArea.appendChild(btn);
+            });
+        }
+    }
+
+    // 選択肢が選ばれた時の処理
+    function selectChoice(choiceIndex, isFinalScenario = false) {
+        if (!gameActive) return;
+
+        const scenario = scenarios[currentScenario];
+        const chosen = scenario.choices[choiceIndex];
+
+        // 選択肢を無効化
+        Array.from(choicesArea.children).forEach(btn => btn.disabled = true);
+
+        // プレイヤーの発言
+        addDialogue('あなた', chosen.text);
+
+        // お母さんの反応
+        setTimeout(() => {
+            currentAnger += chosen.angerChange;
+            updateAngerBar();
+            addDialogue('お母さん', chosen.response);
+
+            if (isFinalScenario && currentAnger <= ANGER_MIN_TO_CLEAR) {
+                gameClear(); // クリア！
+            } else if (currentAnger >= ANGER_MAX) {
+                gameOver();
+            } else {
+                // 次のシナリオへ
+                currentScenario++;
+                if (currentScenario < scenarios.length) {
+                    setTimeout(renderScenario, 1500); // 少し待ってから次のターン
+                } else {
+                    // 全シナリオを消化したがクリア条件未達の場合、最初に戻す
+                    addDialogue('ゲーム', '会話は一旦落ち着いたが、お母さんはまだ不満そうだ…あなたは十分な怒りを下げることができなかったため、話は振り出しに戻った！');
+                    setTimeout(() => startGame(), 2000); // 最初からやり直し
                 }
             }
+        }, 1000); // 1秒待ってお母さんが反応
+    }
 
-            // 理不尽トラップ：特定の場所を通ると死ぬ、または床が消える
-            if (player.x + scrollX > 600 && player.x + scrollX < 650 && player.y > 300) {
-                // ここは落とし穴
-            }
+    // ゲームオーバー画面表示
+    function gameOver() {
+        gameActive = false;
+        gameOverScreen.classList.remove('hidden');
+    }
 
-            // ジャンプ
-            if (keys['Space'] && player.onGround) {
-                player.vy = JUMP;
-                player.onGround = false;
-            }
+    // ゲームクリア画面表示
+    function gameClear() {
+        gameActive = false;
+        gameClearScreen.classList.remove('hidden');
+    }
 
-            // スクロール
-            if (player.x > 400) {
-                scrollX += SPEED;
-                player.x = 400;
-            }
+    // ゲームリスタート
+    function restartGame() {
+        startGame();
+    }
 
-            // 死亡判定
-            if (player.y > canvas.height || (map[gridY] && map[gridY][gridX] === 'X')) {
-                player.dead = true;
-                gameOverScreen.style.display = 'flex';
-            }
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // マップ描画
-            for (let y = 0; y < map.length; y++) {
-                for (let x = 0; x < map[y].length; x++) {
-                    let tile = map[y][x];
-                    let dx = x * TILE_SIZE - scrollX;
-                    if (tile === '#') {
-                        ctx.fillStyle = '#8B4513';
-                        ctx.fillRect(dx, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-                    } else if (tile === '=') {
-                        ctx.fillStyle = '#aaa';
-                        ctx.fillRect(dx, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-                    } else if (tile === '?') {
-                        ctx.fillStyle = '#f1c40f';
-                        ctx.fillRect(dx, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-                    } else if (tile === 'X') {
-                        ctx.fillStyle = 'red';
-                        ctx.beginPath();
-                        ctx.moveTo(dx, (y+1)*TILE_SIZE);
-                        ctx.lineTo(dx+TILE_SIZE/2, y*TILE_SIZE);
-                        ctx.lineTo(dx+TILE_SIZE, (y+1)*TILE_SIZE);
-                        ctx.fill();
-                    }
-                }
-            }
-
-            // プレイヤー描画
-            ctx.fillStyle = 'white';
-            ctx.fillRect(player.x, player.y, player.w, player.h);
-            ctx.strokeStyle = 'black';
-            ctx.strokeRect(player.x, player.y, player.w, player.h);
-            
-            // しょぼんの目
-            ctx.fillStyle = 'black';
-            ctx.fillRect(player.x + 5, player.y + 8, 3, 3);
-            ctx.fillRect(player.x + 22, player.y + 8, 3, 3);
-            ctx.beginPath();
-            ctx.arc(player.x + 15, player.y + 22, 5, 0, Math.PI, true);
-            ctx.stroke();
-        }
-
-        function loop() {
-            update();
-            draw();
-            if (!player.dead) requestAnimationFrame(loop);
-        }
-
-        // 開始メッセージ
-        function start() {
-            msgBox.style.display = 'block';
-            msgBox.innerText = "＊ 理不尽に耐えろ！ (Spaceでジャンプ)";
-            setTimeout(() => {
-                msgBox.style.display = 'none';
-                loop();
-            }, 2000);
-        }
-
-        start();
-    </script>
+    // ゲーム開始
+    startGame();
+</script>
 </body>
 </html>
