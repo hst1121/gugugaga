@@ -1,493 +1,185 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>しょぼんのアクション風</title>
+    <title>しょぼんのアクション風 - 修正版</title>
     <style>
-        body {
-            background-color: #333;
-            margin: 0;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            font-family: 'Press Start 2P', cursive; /* ドット絵フォントがあれば尚良し */
-            color: #fff;
-        }
-        #game-container {
-            position: relative;
-            width: 800px;
-            height: 600px;
-            border: 5px solid #fff;
-            background-color: #87ceeb; /* 空の色 */
-            overflow: hidden; /* 画面外の要素は非表示 */
-        }
-        #game-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            background: transparent; /* 背景はgame-containerが持つ */
-            image-rendering: pixelated; /* ドット絵をきれいに表示 */
-        }
-        #game-over {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            color: red;
-            font-size: 3em;
-            display: none;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            z-index: 100;
-        }
-        #game-over button {
-            background: none;
-            border: 2px solid red;
-            color: red;
-            padding: 10px 20px;
-            font-size: 0.5em;
-            cursor: pointer;
-            margin-top: 20px;
-            font-family: inherit;
-        }
-        #reset-hint {
-            position: absolute;
-            bottom: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: #fff;
-            font-size: 0.8em;
-            display: none;
-        }
+        body { background-color: #333; margin: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; color: #fff; }
+        #game-container { position: relative; width: 800px; height: 480px; border: 4px solid #fff; background-color: #87ceeb; overflow: hidden; }
+        canvas { display: block; background: transparent; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #msg-box { background: rgba(0,0,0,0.7); padding: 20px; font-size: 24px; display: none; pointer-events: auto; }
+        #game-over { background: rgba(0,0,0,0.8); width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; pointer-events: auto; }
+        .retry-btn { margin-top: 20px; padding: 10px 20px; font-size: 18px; cursor: pointer; background: #fff; color: #000; border: none; }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 <body>
 
     <div id="game-container">
-        <canvas id="game-canvas"></canvas>
-        <div id="game-over">
-            <span>GAME OVER</span>
-            <button onclick="resetGame()">リトライ</button>
+        <canvas id="gameCanvas" width="800" height="480"></canvas>
+        <div id="ui-layer">
+            <div id="msg-box"></div>
+            <div id="game-over">
+                <h1 style="color:red; font-size:60px;">GAME OVER</h1>
+                <button class="retry-btn" onclick="resetGame()">リトライ (Rキー)</button>
+            </div>
         </div>
-        <div id="reset-hint">Press R to Reset</div>
     </div>
 
     <script>
-        const canvas = document.getElementById('game-canvas');
+        const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        const msgBox = document.getElementById('msg-box');
         const gameOverScreen = document.getElementById('game-over');
-        const resetHint = document.getElementById('reset-hint');
 
-        // ゲーム設定
-        const TILE_SIZE = 32; // 1タイルのサイズ
-        const GAME_WIDTH = 800;
-        const GAME_HEIGHT = 600;
-        const GRAVITY = 0.5;
-        const PLAYER_SPEED = 3;
-        const JUMP_POWER = -10;
-        const MAX_FALL_SPEED = 10;
+        // 設定
+        const TILE_SIZE = 40;
+        const GRAVITY = 0.6;
+        const JUMP = -12;
+        const SPEED = 4;
 
-        canvas.width = GAME_WIDTH;
-        canvas.height = GAME_HEIGHT;
-
-        // プレイヤーオブジェクト
-        let player = {
-            x: 50, y: GAME_HEIGHT - TILE_SIZE * 3, // 初期位置
-            width: TILE_SIZE, height: TILE_SIZE,
-            dx: 0, dy: 0,
-            onGround: false,
-            isDead: false
-        };
-
-        // マップデータ (0:空, 1:地面, 2:即死ブロック, 3:プレイヤーを上に飛ばす、4:隠しブロック、5:コイン、6:敵)
-        // 最初のマップは少し優しく、だんだんイライラさせる構成に
-        let currentMap = [
-            // Y軸 ↓
-            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 0
-            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 1
-            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 2
-            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 3
-            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 4
-            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 5
-            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 6
-            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 7
-            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 8
-            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 9
-            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 10
-            [1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1], // 11
-            [1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1], // 12
-            [1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1], // 13
-            [1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1], // 14
-            [1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1], // 15
-            [1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1], // 16
-            [1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1], // 17
-            [1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1], // 18
-        ];
-        // 最初のマップを改造してイライラ要素を追加
-        const MAP_ROWS = currentMap.length;
-        const MAP_COLS = currentMap[0].length;
-
-        let levelData = [
-            // Level 1: 基本的な操作と最初の罠
-            [
-                "                                         ", // 空白
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "           1                             ", // コイン取ると即死ブロック出現
-                "           1                             ",
-                "           1                             ",
-                "           1                             ",
-                "                                         ",
-                "       ==                                ", // 隠し即死ブロック
-                "       =                                 ",
-                "         =                               ",
-                "                                         ",
-                "                                         ",
-                "#################      ##################", // 地面
-                "#################      ##################",
-                "#################      ##################",
-            ],
-            // Level 2: より理不尽な罠
-            [
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "                  X                      ", // 敵（動かないが触れると即死）
-                "                  =                      ", // 乗ると落下するブロック
-                "                                         ",
-                "          #                              ", // 踏むと消えるブロック
-                "          #                              ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "###############          ################",
-                "###############          ################",
-                "###############          ################",
-            ],
-            // Level 3: ゴール前の絶望
-            [
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "        ===                              ", // 隠しブロックが沢山
-                "        ===                              ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "                                         ",
-                "#############################            ",
-                "#############################            ",
-                "#############################            ",
-            ]
+        let player = { x: 80, y: 300, w: 30, h: 30, vx: 0, vy: 0, onGround: false, dead: false };
+        let scrollX = 0;
+        let map = [
+            "                                                  ",
+            "                                                  ",
+            "                                                  ",
+            "                                                  ",
+            "          ====                                    ",
+            "                                                  ",
+            "                ?    ?                            ",
+            "                                                  ",
+            "     ==                                           ",
+            "                                  XXXXX           ",
+            "#################      ###########################",
+            "#################      ###########################"
         ];
 
-        let currentLevel = 0;
-        let mapOffset = 0; // マップの横スクロールオフセット
-        let visibleMap = []; // 現在画面に表示されている部分のマップ
-
-        // タイル描画用の色
-        const TILE_COLORS = {
-            ' ': 'transparent', // 空
-            '#': '#996633',     // 地面
-            '=': '#aaaaaa',     // ブロック
-            'X': '#ff0000',     // 敵 (即死)
-            '$': '#ffff00',     // コイン (イライラ用)
-            'H': '#00ff00',     // 隠しブロック (最初は見えない)
-            'P': '#0000ff'      // プレイヤー (描画は別に)
-        };
-
-        // 隠しブロックの状態
-        let hiddenBlocks = {}; // 例: {'x_y': {type: 'H', revealed: false}}
-
-        function loadLevel(levelIndex) {
-            currentMap = levelData[levelIndex].map(row => row.split(''));
-            mapOffset = 0;
-            player.x = 50;
-            player.y = GAME_HEIGHT - TILE_SIZE * 3;
-            player.dx = 0;
-            player.dy = 0;
-            player.onGround = false;
-            player.isDead = false;
-            hiddenBlocks = {}; // レベルごとにリセット
-
-            // 隠しブロックを初期設定
-            currentMap.forEach((row, y) => {
-                row.forEach((tile, x) => {
-                    if (tile === 'H') {
-                        hiddenBlocks[`${x}_${y}`] = { type: 'H', revealed: false };
-                        currentMap[y][x] = ' '; // 最初は空にする
-                    }
-                });
-            });
-        }
-
-        // キー入力管理
-        const keys = {};
+        let keys = {};
         window.addEventListener('keydown', e => {
             keys[e.code] = true;
-            if (e.code === 'KeyR' && player.isDead) { // Rキーでリスタート
-                resetGame();
-            }
+            if(e.code === 'KeyR' && player.dead) resetGame();
         });
-        window.addEventListener('keyup', e => {
-            keys[e.code] = false;
-        });
+        window.addEventListener('keyup', e => keys[e.code] = false);
 
         function resetGame() {
-            player.isDead = false;
+            player = { x: 80, y: 300, w: 30, h: 30, vx: 0, vy: 0, onGround: false, dead: false };
+            scrollX = 0;
             gameOverScreen.style.display = 'none';
-            resetHint.style.display = 'none';
-            loadLevel(currentLevel); // 現在のレベルを再読み込み
-            loop(); // ゲームループ再開
+            // 隠しブロックなどをリセットしたい場合はここでマップを再定義
+            loop();
         }
 
-        function gameOver() {
-            player.isDead = true;
-            gameOverScreen.style.display = 'flex';
-            resetHint.style.display = 'block';
-        }
+        function update() {
+            if (player.dead) return;
 
-        function checkCollision(objA, objB) {
-            return objA.x < objB.x + objB.width &&
-                   objA.x + objA.width > objB.x &&
-                   objA.y < objB.y + objB.height &&
-                   objA.y + objA.height > objB.y;
-        }
-
-        function updatePlayer() {
-            if (player.isDead) return;
-
-            // 水平移動
-            if (keys['ArrowLeft']) player.dx = -PLAYER_SPEED;
-            else if (keys['ArrowRight']) player.dx = PLAYER_SPEED;
-            else player.dx = 0; // 操作しないと止まる
+            // 移動
+            player.vx = 0;
+            if (keys['ArrowLeft']) player.vx = -SPEED;
+            if (keys['ArrowRight']) player.vx = SPEED;
 
             // 重力
-            player.dy += GRAVITY;
-            if (player.dy > MAX_FALL_SPEED) player.dy = MAX_FALL_SPEED;
+            player.vy += GRAVITY;
+            player.x += player.vx;
+            player.y += player.vy;
 
-            // X軸での衝突判定と移動
-            let nextX = player.x + player.dx;
-            let hitX = false;
-            for (let y = 0; y < MAP_ROWS; y++) {
-                for (let x = 0; x < MAP_COLS; x++) {
-                    let tile = currentMap[y][x];
-                    if (tile === ' ' && !hiddenBlocks[`${x}_${y}`]?.revealed) continue; // 空か隠しブロックは無視
-
-                    let tileRect = {
-                        x: x * TILE_SIZE - mapOffset,
-                        y: y * TILE_SIZE,
-                        width: TILE_SIZE,
-                        height: TILE_SIZE
-                    };
-
-                    if (checkCollision({ ...player, x: nextX }, tileRect)) {
-                        if (tile === '#' || tile === '=') { // 地面や普通のブロック
-                            hitX = true;
-                            // 進行方向に応じて押し戻す
-                            if (player.dx > 0) nextX = tileRect.x - player.width;
-                            else if (player.dx < 0) nextX = tileRect.x + tileRect.width;
-                            player.dx = 0; // 衝突したら横移動停止
-                        } else if (tile === 'X' || tile === '$') { // 敵やコインに触れたら即死
-                            gameOver();
-                            return;
-                        }
-                    }
-                }
-            }
-            player.x = nextX;
-
-            // Y軸での衝突判定と移動
-            let nextY = player.y + player.dy;
+            // 衝突判定（簡易）
             player.onGround = false;
-            let hitY = false;
-            for (let y = 0; y < MAP_ROWS; y++) {
-                for (let x = 0; x < MAP_COLS; x++) {
-                    let tile = currentMap[y][x];
-                    if (tile === ' ' && !hiddenBlocks[`${x}_${y}`]?.revealed) continue;
+            let gridY = Math.floor((player.y + player.h) / TILE_SIZE);
+            let gridX = Math.floor((player.x + player.w / 2 + scrollX) / TILE_SIZE);
 
-                    let tileRect = {
-                        x: x * TILE_SIZE - mapOffset,
-                        y: y * TILE_SIZE,
-                        width: TILE_SIZE,
-                        height: TILE_SIZE
-                    };
-
-                    if (checkCollision({ ...player, y: nextY }, tileRect)) {
-                        if (tile === '#' || tile === '=') {
-                            hitY = true;
-                            if (player.dy > 0) { // 下に衝突（着地）
-                                nextY = tileRect.y - player.height;
-                                player.onGround = true;
-                                player.dy = 0;
-                            } else if (player.dy < 0) { // 上に衝突（頭突き）
-                                nextY = tileRect.y + tileRect.height;
-                                player.dy = 0;
-                                // ---- イライラ要素: 頭突きでブロックが消える/現れる ----
-                                if (tile === '=') {
-                                    currentMap[y][x] = ' '; // 叩くと消えるブロック
-                                }
-                                // 隠しブロックの出現
-                                for (let hy = y - 2; hy <= y; hy++) { // 頭上2マスくらいをチェック
-                                    for (let hx = x - 2; hx <= x + 2; hx++) {
-                                        if (hiddenBlocks[`${hx}_${hy}`] && !hiddenBlocks[`${hx}_${hy}`].revealed) {
-                                            hiddenBlocks[`${hx}_${hy}`].revealed = true;
-                                            currentMap[hy][hx] = hiddenBlocks[`${hx}_${hy}`].type; // 隠しブロックを出現させる
-                                        }
-                                    }
-                                }
-                            }
-                        } else if (tile === 'X' || tile === '$') {
-                            gameOver();
-                            return;
-                        }
-                    }
+            if (map[gridY] && (map[gridY][gridX] === '#' || map[gridY][gridX] === '=')) {
+                if (player.vy > 0) {
+                    player.y = gridY * TILE_SIZE - player.h;
+                    player.vy = 0;
+                    player.onGround = true;
                 }
             }
-            player.y = nextY;
+
+            // 理不尽トラップ：特定の場所を通ると死ぬ、または床が消える
+            if (player.x + scrollX > 600 && player.x + scrollX < 650 && player.y > 300) {
+                // ここは落とし穴
+            }
 
             // ジャンプ
             if (keys['Space'] && player.onGround) {
-                player.dy = JUMP_POWER;
+                player.vy = JUMP;
                 player.onGround = false;
             }
 
-            // 画面外落下で即死
-            if (player.y > GAME_HEIGHT) {
-                gameOver();
-                return;
+            // スクロール
+            if (player.x > 400) {
+                scrollX += SPEED;
+                player.x = 400;
             }
 
-            // マップスクロール
-            if (player.x > GAME_WIDTH / 2) {
-                mapOffset += player.dx;
-                player.x = GAME_WIDTH / 2;
-                // マップの端まで行ったらスクロール停止
-                if (mapOffset > (MAP_COLS * TILE_SIZE) - GAME_WIDTH) {
-                    mapOffset = (MAP_COLS * TILE_SIZE) - GAME_WIDTH;
-                }
-                if (mapOffset < 0) {
-                    mapOffset = 0;
-                }
-            }
-
-            // ゴール判定 (仮: マップの右端に到達)
-            if (player.x + mapOffset >= (MAP_COLS * TILE_SIZE) - player.width - 50) { // マップの右端近く
-                currentLevel++;
-                if (currentLevel < levelData.length) {
-                    typeMessage(`おめでとう！ レベル ${currentLevel} クリア！`, loadLevel(currentLevel));
-                } else {
-                    typeMessage("全てをクリアした！あなたは本当にすごい！", () => {
-                        alert("全レベルクリア！");
-                        loadLevel(0); // 最初からやり直し
-                    });
-                }
+            // 死亡判定
+            if (player.y > canvas.height || (map[gridY] && map[gridY][gridX] === 'X')) {
+                player.dead = true;
+                gameOverScreen.style.display = 'flex';
             }
         }
 
-        function drawPlayer() {
-            ctx.fillStyle = player.isDead ? 'transparent' : '#0000ff'; // 死んだら見えなくする
-            ctx.fillRect(player.x, player.y, player.width, player.height);
-        }
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        function drawMap() {
-            ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
-            // 画面に表示される範囲のタイルのみ描画
-            const startCol = Math.floor(mapOffset / TILE_SIZE);
-            const endCol = Math.min(MAP_COLS, startCol + GAME_WIDTH / TILE_SIZE + 2);
-
-            for (let y = 0; y < MAP_ROWS; y++) {
-                for (let x = startCol; x < endCol; x++) {
-                    const tile = currentMap[y][x];
-                    const drawX = x * TILE_SIZE - mapOffset;
-                    const drawY = y * TILE_SIZE;
-
-                    if (tile !== ' ') {
-                        ctx.fillStyle = TILE_COLORS[tile] || '#ccc'; // 未定義タイルは灰色
-                        ctx.fillRect(drawX, drawY, TILE_SIZE, TILE_SIZE);
+            // マップ描画
+            for (let y = 0; y < map.length; y++) {
+                for (let x = 0; x < map[y].length; x++) {
+                    let tile = map[y][x];
+                    let dx = x * TILE_SIZE - scrollX;
+                    if (tile === '#') {
+                        ctx.fillStyle = '#8B4513';
+                        ctx.fillRect(dx, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    } else if (tile === '=') {
+                        ctx.fillStyle = '#aaa';
+                        ctx.fillRect(dx, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    } else if (tile === '?') {
+                        ctx.fillStyle = '#f1c40f';
+                        ctx.fillRect(dx, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    } else if (tile === 'X') {
+                        ctx.fillStyle = 'red';
+                        ctx.beginPath();
+                        ctx.moveTo(dx, (y+1)*TILE_SIZE);
+                        ctx.lineTo(dx+TILE_SIZE/2, y*TILE_SIZE);
+                        ctx.lineTo(dx+TILE_SIZE, (y+1)*TILE_SIZE);
+                        ctx.fill();
                     }
                 }
             }
-        }
 
-        // --- メッセージ表示関数 (クリア時などに使用) ---
-        let messageTimer = null;
-        function typeMessage(text, callback = () => {}) {
-            if (messageTimer) clearTimeout(messageTimer); // 前のメッセージをクリア
-
-            state = 'ANIMATING'; // アニメーション中は操作無効
-            gameOverScreen.style.display = 'none'; // ゲームオーバー画面を隠す
-            resetHint.style.display = 'none';
-
-            let currentText = '';
-            let i = 0;
-            msgBox.style.display = 'block';
-            msgBox.innerText = "";
+            // プレイヤー描画
+            ctx.fillStyle = 'white';
+            ctx.fillRect(player.x, player.y, player.w, player.h);
+            ctx.strokeStyle = 'black';
+            ctx.strokeRect(player.x, player.y, player.w, player.h);
             
-            const typingEffect = () => {
-                if (i < text.length) {
-                    currentText += text[i];
-                    msgBox.innerText = currentText;
-                    i++;
-                    messageTimer = setTimeout(typingEffect, 50); // 1文字ずつ表示
-                } else {
-                    // メッセージ表示後、少し待ってから次の処理
-                    setTimeout(() => {
-                        msgBox.style.display = 'none';
-                        callback(); // コールバックを実行
-                        state = 'RUNNING'; // ゲームを再開
-                    }, 1500); // 1.5秒表示
-                }
-            };
-            typingEffect();
+            // しょぼんの目
+            ctx.fillStyle = 'black';
+            ctx.fillRect(player.x + 5, player.y + 8, 3, 3);
+            ctx.fillRect(player.x + 22, player.y + 8, 3, 3);
+            ctx.beginPath();
+            ctx.arc(player.x + 15, player.y + 22, 5, 0, Math.PI, true);
+            ctx.stroke();
         }
 
-
-        // ゲームループ
-        let lastFrameTime = 0;
-        function loop(currentTime) {
-            if (player.isDead || state === 'ANIMATING') {
-                lastFrameTime = currentTime;
-                return; // ゲームオーバーまたはアニメーション中はループを停止
-            }
-
-            const deltaTime = (currentTime - lastFrameTime) / (1000 / 60); // 60fps基準でdeltaTimeを計算
-            lastFrameTime = currentTime;
-
-            updatePlayer();
-            drawMap();
-            drawPlayer();
-
-            requestAnimationFrame(loop);
+        function loop() {
+            update();
+            draw();
+            if (!player.dead) requestAnimationFrame(loop);
         }
 
-        // 初期化
-        loadLevel(0); // 最初のレベルをロード
-        loop(); // ゲームループ開始
+        // 開始メッセージ
+        function start() {
+            msgBox.style.display = 'block';
+            msgBox.innerText = "＊ 理不尽に耐えろ！ (Spaceでジャンプ)";
+            setTimeout(() => {
+                msgBox.style.display = 'none';
+                loop();
+            }, 2000);
+        }
+
+        start();
     </script>
 </body>
 </html>
